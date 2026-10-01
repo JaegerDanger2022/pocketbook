@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* Design tokens from Pocketbook.dc.html. Each one becomes a Tailwind class, e.g. bg-brand, text-muted. */
+@theme {
+  --color-ink: #1b1c19;
+  --color-paper: #f6f5f0;
+  --color-page: #e8e6df;
+  --color-brand: #2f7d4f;
+  --color-brand-dark: #1f5e39;
+  --color-brand-tint: #e3efe6;
+  --color-muted: #6b6c66;
+  --color-line: #e6e4dc;
+  --color-track: #eeede6;
+  --color-chip-off: #d6d3c9;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fceeec;
+  --color-danger-line: #f2c9c4;
+  --color-danger-text: #7a1a14;
+  --color-saving: #6fa184;
+
+  /* The design uses the font's natural line height, not Tailwind's taller defaults. */
+  --text-xs--line-height: normal;
+  --text-sm--line-height: normal;
+  --text-base--line-height: normal;
+  --text-lg--line-height: normal;
+  --text-xl--line-height: normal;
+  --text-2xl--line-height: normal;
+}
+
+@theme inline {
+  --font-sans: var(--font-figtree), system-ui, sans-serif;
+}
+
+/* Base styles go in the "base" layer so Tailwind classes can override them. */
+@layer base {
+  html {
+    line-height: normal;
+  }
+
+  body {
+    background: var(--color-page);
+    color: var(--color-ink);
+  }
+
+  a {
+    color: var(--color-brand);
+  }
+}
