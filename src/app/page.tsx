@@ -17,10 +17,12 @@ import { categoryTotals, expensesInMonth, groupByDay, sumAmounts } from "@/lib/s
 export default function HomePage() {
   const router = useRouter();
   const user = useRequiredUser();
-  const expenses = useExpenses();
+  const { expenses, failed } = useExpenses(user);
   const [month, setMonth] = useState(currentMonth);
 
-  if (!user || !expenses) return null;
+  if (!user) return null;
+  if (failed) return <LoadError />;
+  if (!expenses) return null;
 
   const isCurrentMonth = month >= currentMonth();
   const inMonth = expensesInMonth(expenses, month);
@@ -81,5 +83,19 @@ export default function HomePage() {
         </BottomBar>
       )}
     </>
+  );
+}
+
+function LoadError() {
+  return (
+    <main className="flex flex-1 flex-col justify-center gap-4 px-5">
+      <div role="alert" className="flex flex-col gap-1 rounded-[20px] border-[1.5px] border-danger-line bg-danger-bg p-4 text-danger-text">
+        <span className="text-base font-bold">Couldn&apos;t load your expenses</span>
+        <span className="text-sm leading-[1.4] font-medium">Check your connection and try again.</span>
+      </div>
+      <button type="button" onClick={() => window.location.reload()} className={`${primaryButtonClass({ raised: false })} cursor-pointer`}>
+        Try again
+      </button>
+    </main>
   );
 }

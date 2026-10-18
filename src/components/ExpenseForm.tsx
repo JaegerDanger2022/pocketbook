@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CATEGORIES, type CategoryId } from "@/lib/categories";
 import { CURRENCY, sanitizeAmount, todayISO, yesterdayISO } from "@/lib/format";
-import { addExpense, deleteExpense, updateExpense } from "@/lib/storage";
-import type { Expense } from "@/lib/types";
+import { OfflineError, addExpense, deleteExpense, newExpenseId, updateExpense } from "@/lib/storage";
+import type { Expense, User } from "@/lib/types";
 import { useToast } from "./Toast";
 import { BottomBar, Chip, Spinner, primaryButtonClass } from "./ui";
 
@@ -16,13 +16,18 @@ type FormValues = {
   date: string;
 };
 
+const OFFLINE_ERROR = "You seem to be offline. Your details are still here — try again when you're connected.";
 const SAVE_ERROR = "Something went wrong. Your details are still here — try again.";
 
+const errorMessage = (e: unknown) => (e instanceof OfflineError ? OFFLINE_ERROR : SAVE_ERROR);
+
 // The add/edit screen. Pass an `expense` to edit it; leave it out to add a new one.
-export function ExpenseForm({ expense }: { expense?: Expense }) {
+export function ExpenseForm({ user, expense }: { user: User; expense?: Expense }) {
   const router = useRouter();
   const toast = useToast();
   const isEdit = !!expense;
+  // Picked once, so pressing "Try again" after a failed save never creates a duplicate.
+  const [newId] = useState(() => newExpenseId(user.uid));
 
   const [values, setValues] = useState<FormValues>(() =>
     expense
@@ -53,27 +58,30 @@ export function ExpenseForm({ expense }: { expense?: Expense }) {
     };
     try {
       if (expense) {
-        await updateExpense(expense.id, input);
+        await updateExpense(user.uid, expense.id, input);
         toast("Changes saved");
       } else {
-        await addExpense(input);
+        await addExpense(user.uid, newId, input);
         toast("Expense added");
       }
       router.push("/");
-    } catch {
+    } catch (e) {
       setSaving(false);
-      setSaveError(SAVE_ERROR);
+      setSaveError(errorMessage(e));
     }
   }
 
   async function handleDelete() {
     if (!expense) return;
+    setSaving(true);
+    setSaveError("");
     try {
-      await deleteExpense(expense.id);
+      await deleteExpense(user.uid, expense.id);
       toast("Expense deleted");
       router.push("/");
-    } catch {
-      setSaveError(SAVE_ERROR);
+    } catch (e) {
+      setSaving(false);
+      setSaveError(errorMessage(e));
     }
   }
 

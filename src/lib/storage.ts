@@ -1,46 +1,58 @@
-// Expenses data layer.
+// Expenses data layer, backed by Cloud Firestore.
 //
-// Today: saved in this browser's localStorage.
-// Later: replace the bodies of these functions with Firestore calls (users/{uid}/expenses).
-// Keep the function names and signatures the same so no screen needs to change.
+// Each user's expenses live at users/{uid}/expenses/{expenseId}.
+// The rules in /firestore.rules make sure only that user can read or change them.
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import { firestore } from "./firebase";
 import type { Expense, ExpenseInput } from "./types";
 
-const KEY = "pocketbook.expenses";
-
-function readAll(): Expense[] {
-  const raw = localStorage.getItem(KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+// Thrown when a save can't reach Firebase. The form shows the "you seem to be offline" message.
+export class OfflineError extends Error {
+  constructor() {
+    super("offline");
   }
 }
 
-// Throws if the browser refuses to store data (e.g. storage full or blocked).
-function writeAll(expenses: Expense[]): void {
-  localStorage.setItem(KEY, JSON.stringify(expenses));
+const expensesOf = (uid: string) => collection(firestore(), "users", uid, "expenses");
+
+// Firestore waits (forever) for a connection before finishing a save. We'd rather tell the
+// user, so give up after a few seconds. Saves use fixed ids, so trying again never makes duplicates.
+async function whenOnline<T>(work: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== "undefined" && !navigator.onLine) throw new OfflineError();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new OfflineError()), 10_000);
+  });
+  try {
+    return await Promise.race([work(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-export async function listExpenses(): Promise<Expense[]> {
-  return readAll();
+// A new, unique id for an expense that hasn't been saved yet.
+export function newExpenseId(uid: string): string {
+  return doc(expensesOf(uid)).id;
 }
 
-export async function getExpense(id: string): Promise<Expense | null> {
-  return readAll().find((e) => e.id === id) ?? null;
+export async function listExpenses(uid: string): Promise<Expense[]> {
+  const snapshot = await getDocs(expensesOf(uid));
+  return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Expense, "id">) }));
 }
 
-export async function addExpense(input: ExpenseInput): Promise<Expense> {
-  const expense: Expense = { ...input, id: crypto.randomUUID(), createdAt: Date.now() };
-  writeAll([expense, ...readAll()]);
-  return expense;
+export async function getExpense(uid: string, id: string): Promise<Expense | null> {
+  const snapshot = await getDoc(doc(expensesOf(uid), id));
+  return snapshot.exists() ? { id: snapshot.id, ...(snapshot.data() as Omit<Expense, "id">) } : null;
 }
 
-export async function updateExpense(id: string, input: ExpenseInput): Promise<void> {
-  writeAll(readAll().map((e) => (e.id === id ? { ...e, ...input } : e)));
+export async function addExpense(uid: string, id: string, input: ExpenseInput): Promise<void> {
+  await whenOnline(() => setDoc(doc(expensesOf(uid), id), { ...input, createdAt: Date.now() }));
 }
 
-export async function deleteExpense(id: string): Promise<void> {
-  writeAll(readAll().filter((e) => e.id !== id));
+export async function updateExpense(uid: string, id: string, input: ExpenseInput): Promise<void> {
+  await whenOnline(() => updateDoc(doc(expensesOf(uid), id), { ...input }));
+}
+
+export async function deleteExpense(uid: string, id: string): Promise<void> {
+  await whenOnline(() => deleteDoc(doc(expensesOf(uid), id)));
 }

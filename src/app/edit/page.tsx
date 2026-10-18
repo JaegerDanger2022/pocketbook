@@ -20,20 +20,24 @@ function EditExpense() {
   const router = useRouter();
   const id = useSearchParams().get("id");
   const user = useRequiredUser();
+  const uid = user?.uid;
   const [expense, setExpense] = useState<Expense | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     if (!id) {
       router.replace("/");
       return;
     }
-    getExpense(id).then((found) => {
-      if (found) setExpense(found);
-      else router.replace("/"); // deleted or unknown id
-    });
-  }, [id, user, router]);
+    getExpense(uid, id).then(
+      (found) => {
+        if (found) setExpense(found);
+        else router.replace("/"); // deleted or unknown id
+      },
+      () => router.replace("/"), // couldn't load it
+    );
+  }, [id, uid, router]);
 
   if (!user || !expense) return null;
-  return <ExpenseForm expense={expense} />;
+  return <ExpenseForm user={user} expense={expense} />;
 }

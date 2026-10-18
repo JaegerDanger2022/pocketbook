@@ -13,5 +13,7 @@ export type Expense = {
 export type ExpenseInput = Omit<Expense, "id" | "createdAt">;
 
 export type User = {
+  uid: string; // Firebase's unique id for this account
   name: string;
+  email: string;
 };

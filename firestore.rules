@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Pocketbook security rules.
+// Each user can only read and write their own expenses, at users/{uid}/expenses/{expenseId}.
+// Everything else in the database is locked.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // What a saved expense must look like.
+    function isValidExpense(data) {
+      return data.keys().hasOnly(['amount', 'category', 'note', 'date', 'createdAt'])
+        && data.amount is number && data.amount > 0 && data.amount < 1000000000
+        && data.category in ['food', 'groceries', 'transport', 'bills', 'shopping', 'fun', 'health', 'other']
+        && data.note is string && data.note.size() <= 40
+        && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.createdAt is int;
+    }
+
+    match /users/{uid}/expenses/{expenseId} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidExpense(request.resource.data);
+      allow update: if isOwner(uid) && isValidExpense(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+  }
+}

@@ -6,5 +6,5 @@ import { useRequiredUser } from "@/hooks/useRequiredUser";
 export default function AddPage() {
   const user = useRequiredUser();
   if (!user) return null;
-  return <ExpenseForm />;
+  return <ExpenseForm user={user} />;
 }

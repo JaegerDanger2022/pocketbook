@@ -2,8 +2,8 @@
 My first app: a simple expense tracker built with Claude Code and Firebase
 
 Log an expense in five seconds and see your monthly total, category totals and a day-by-day list.
-Built with Next.js as a static site and hosted on Firebase Hosting. For now, data is saved in your browser.
-Firebase login and database are coming next.
+Built with Next.js as a static site, hosted on Firebase Hosting. Sign in with Google or email and
+password; each person's expenses are saved in Cloud Firestore where only they can see them.
 
 ## Run it on your computer
 You need [Node.js](https://nodejs.org) installed.
@@ -20,12 +20,14 @@ npx serve out    # optional: preview the built site
 ```
 
 ## Deploy to Firebase Hosting
-First time only: create a project at [console.firebase.google.com](https://console.firebase.google.com), then:
+First time only:
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase use --add   # pick the project you created
+firebase deploy --only firestore:rules   # publishes the privacy rules in firestore.rules
 ```
+(The project, `pocketbook-38ba5`, is already set in `.firebaserc`. Deploy the rules again
+whenever `firestore.rules` changes.)
 
 Every deploy:
 ```bash

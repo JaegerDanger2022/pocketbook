@@ -16,7 +16,9 @@ The owner is a **beginner** with Next.js and Firebase. When making changes:
 - **Next.js** (App Router) + **TypeScript** + **Tailwind CSS v4**
 - **Static export** (`output: 'export'` in `next.config.ts`) → `npm run build` writes plain files to `out/`
 - **Firebase Hosting** serves `out/` (config in `firebase.json`)
-- **Planned, not yet added:** Firebase Auth (Google sign-in) and Firestore for data
+- **Firebase Auth**: Google and Email/Password sign-in (incl. sign up and password reset)
+- **Cloud Firestore**: each user's expenses at `users/{uid}/expenses/{expenseId}`
+- Firebase project: **`pocketbook-38ba5`** (set in `.firebaserc`)
 
 ## Static export rules (important)
 Everything runs in the browser. There is no server. So:
@@ -27,12 +29,23 @@ Everything runs in the browser. There is no server. So:
 - `next/image` runs with `images.unoptimized: true`.
 
 ## Data rule
-Components **never** touch `localStorage` (or Firebase) directly. They go through:
-- `src/lib/storage.ts`: expenses (list/add/update/delete). localStorage today, Firestore later.
-- `src/lib/auth.ts`: sign-in state. A fake sign-in today, Firebase Auth (Google) later.
+Components **never** call Firebase directly. They go through:
+- `src/lib/auth.ts`: `watchUser`, sign in/up with Google or email, password reset, sign out,
+  and `authErrorMessage` (turns Firebase error codes into friendly sentences).
+- `src/lib/storage.ts`: list/get/add/update/delete expenses. Every function takes the user's `uid`.
+- `src/lib/firebase.ts`: the Firebase config and lazy `firebaseAuth()` / `firestore()` getters.
+  They are created on first use so nothing Firebase runs while Next.js pre-builds pages.
 
-These two files are the only ones that should need to change when Firebase is added.
-Keep their function signatures async so swapping them in doesn't change any callers.
+The Firebase web config in `firebase.ts` is **not secret** (it ships in every Firebase web app).
+Privacy comes from **`firestore.rules`**: users can only read/write their own
+`users/{uid}/expenses`, and saved expenses must have valid fields. If you change the shape of an
+expense, update the rules too, test them on the emulators, then deploy them
+(`firebase deploy --only firestore:rules`).
+
+Saving while offline: Firestore would wait forever, so `storage.ts` gives up after 10s (or right
+away if the browser knows it's offline) and throws `OfflineError`. The form then shows the design's
+"You seem to be offline" banner. New expenses get their id up front (`newExpenseId`), so "Try
+again" can never create a duplicate.
 
 ## Design
 The source of truth is the Claude Design project **`Pocketbook.dc.html`**
@@ -90,11 +103,14 @@ src/
     categories.ts     the 8 categories
     format.ts         money/date helpers (CURRENCY lives here)
     summary.ts        totals and grouping for Home
-    storage.ts        expenses data layer (swap to Firestore later)
-    auth.ts           sign-in layer (swap to Firebase Auth later)
+    firebase.ts       Firebase config + connection (and emulator switch)
+    storage.ts        expenses in Firestore
+    auth.ts           Firebase sign-in
 scripts/
   fix-export-windows.mjs  runs after every build (see below)
-firebase.json         Firebase Hosting config (serves out/)
+firebase.json         Firebase Hosting, Firestore rules and emulator config
+.firebaserc           which Firebase project the CLI uses
+firestore.rules       who can read/write what in Firestore
 ```
 
 ## Known quirk: Windows build fix
@@ -112,10 +128,21 @@ Note: on Windows, `npm run build` fails with `EBUSY` if a terminal or server has
 - `npm run build`: build the static site into `out/`
 - `npx serve out`: preview the built site locally
 - `firebase deploy --only hosting`: publish `out/` to Firebase Hosting (run `npm run build` first)
+- `firebase deploy --only firestore:rules`: publish `firestore.rules` (needed after every rules change)
+
+## Testing with the emulators
+Firebase's local emulators let you test sign-in and Firestore (with the real rules) without
+touching real users or data. Needs Java.
+1. `firebase emulators:start --only auth,firestore` (keep it running)
+2. In another terminal: `NEXT_PUBLIC_USE_EMULATORS=1 npm run dev` (PowerShell:
+   `$env:NEXT_PUBLIC_USE_EMULATORS="1"; npm run dev`)
+3. Google sign-in shows a fake account picker on the emulator. Reset emails aren't sent; they are
+   listed by the emulator instead.
+
+Never deploy a build made with `NEXT_PUBLIC_USE_EMULATORS=1`. Run a plain `npm run build` first.
 
 ## Roadmap
-1. ✅ Static Next.js app matching the design, data saved in the browser
-2. ⏳ Firebase Hosting deploy
-3. ⏳ Firebase Auth with Google: replace `src/lib/auth.ts`
-4. ⏳ Firestore at `users/{uid}/expenses`: replace `src/lib/storage.ts`.
-   Firebase config goes in `NEXT_PUBLIC_FIREBASE_*` env vars (`.env.local`, not committed).
+1. ✅ Static Next.js app matching the design
+2. ✅ Firebase Auth (Google + Email/Password) and Firestore with per-user security rules
+3. ⏳ Deploy the Firestore rules and the site to Firebase Hosting
+4. Ideas: email verification, a real empty-state illustration, Terms/Privacy pages
